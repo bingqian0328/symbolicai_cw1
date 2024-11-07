@@ -80,6 +80,7 @@ def solve(instance):
     for exam_id, student_id in instance.exams_to_students:
         s.add(ExamStudent(exam_id, student_id))
 
+
     # Constraint 1 and 2: Room and Time Assignments for Exams
     s.add(
     ForAll([exam],
@@ -140,12 +141,47 @@ def solve(instance):
 
     # Check if the constraints are satisfiable
     if s.check() == sat:
+        students_with_many_exams = []
         print('Satisfied')
         m = s.model()  # Only get the model when satisfiable
         print("――――――――――――Exam Timetable――――――――――――--")
         for ex in range(instance.number_of_exams):
-            print(f"Exam: {ex} | Room: {m.eval(ExamRoom(ex))} | Slot: {m.eval(ExamTime(ex))}")
-        print("――――――――――――――――――――――――---------------")
+            room = m.eval(ExamRoom(ex))
+            slot = m.eval(ExamTime(ex))
+            students_count = instance.student_exam_capacity[ex]
+            print(f"Exam: {ex} | Room: {room} | Slot: {slot} | Students: {students_count}")
+        print("――――――――――――――――――――――――----------------")
+
+        # Print Individual Timetable for Each Student
+        print("―――――――――――Individual Timetables (Exam, Slot, Room)―――――――――――")
+        for student_id in range(instance.number_of_students):
+             
+            exams_for_student = [
+                (exam, m.eval(ExamTime(exam)), m.eval(ExamRoom(exam)))
+                for exam, stud in instance.exams_to_students
+                if stud == student_id
+            ]
+
+            if exams_for_student:
+                exams_formatted = " | ".join(f"({ex}, {slot}, {room})" for ex, slot, room in exams_for_student)
+                print(f"Student {student_id}: {exams_formatted}")
+
+                # Track students with more than 3 exams
+                if len(exams_for_student) > 3:
+                    students_with_many_exams.append(student_id)
+            else:
+                print(f"Student {student_id}: Student is not scheduled for any exam, please check with the student office.")
+
+            # Track students with more than 3 exams
+            if len(exams_for_student) > 3:
+                students_with_many_exams.append(student_id)
+
+        # Print warning if any student has more than 3 exams
+        if students_with_many_exams:
+            students_list = ", ".join(map(str, students_with_many_exams))
+            print(f"Warning: Student(s) {students_list} are scheduled for more than 3 exams!")
+
+        print("――――――――――――――――――――――――--------------------------------------")
     else:
         print('Unsatisfied')
 
