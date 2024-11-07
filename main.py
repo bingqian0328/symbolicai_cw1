@@ -172,10 +172,6 @@ def solve(instance):
             else:
                 print(f"Student {student_id}: Student is not scheduled for any exam, please check with the student office.")
 
-            # Track students with more than 3 exams
-            if len(exams_for_student) > 3:
-                students_with_many_exams.append(student_id)
-
         # Print warning if any student has more than 3 exams
         if students_with_many_exams:
             students_list = ", ".join(map(str, students_with_many_exams))
