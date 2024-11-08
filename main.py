@@ -65,6 +65,9 @@ def solve(instance):
     Room_Range = Function('Room_Range', IntSort(), BoolSort())
     TimeSlot_Range = Function('TimeSlot_Range', IntSort(), BoolSort())
 
+    # Matrix to track which invigilators are assigned to each exam and timeslot
+    InvigilatorAssigned = [[[Bool(f"invig_{i}_exam_{e}_slot_{t}") for t in range(instance.number_of_slots)] for e in range(instance.number_of_exams)] for i in range(10)]
+
     # Range Constraints
     s.add(ForAll([student], Student_Range(student) == And(student >= 0, student < instance.number_of_students)))
     s.add(ForAll([exam], Exam_Range(exam) == And(exam >= 0, exam < instance.number_of_exams)))
@@ -75,6 +78,7 @@ def solve(instance):
     ExamRoom = Function('ExamRoom', IntSort(), IntSort())      # Maps each exam to a room
     ExamTime = Function('ExamTime', IntSort(), IntSort())      # Maps each exam to a timeslot
     ExamStudent = Function('ExamStudent', IntSort(), IntSort(), BoolSort())  # Indicates if a student is taking an exam
+    ExamInvigilators = Function('ExamInvigilators', IntSort(), IntSort())
 
     # Add Students Taking Exams based on Input Data
     for exam_id, student_id in instance.exams_to_students:
@@ -139,6 +143,22 @@ def solve(instance):
         )
     )
 
+  # Assign invigilators based on number of students and ensure no invigilator is invilating for two consecutive time slots
+    for e in range(instance.number_of_exams):
+        students = instance.student_exam_capacity[e]
+        invigilators_needed = If(students <= 10, 1, If(students <= 20, 2, 3))
+        for t in range(instance.number_of_slots):
+            s.add(Sum([InvigilatorAssigned[i][e][t] for i in range(10)]) == If(ExamTime(e) == t, invigilators_needed, 0))
+
+    # Constraint: Total invigilators per time slot must not exceed 10
+    for t in range(instance.number_of_slots):
+        s.add(Sum([InvigilatorAssigned[i][e][t] for i in range(10) for e in range(instance.number_of_exams)]) <= 10)
+
+    # Constraint: No invigilator can invigilate in consecutive time slots
+    for i in range(10):
+        for t1 in range(instance.number_of_slots - 1):
+            s.add(Sum([InvigilatorAssigned[i][e][t1] + InvigilatorAssigned[i][e][t1 + 1] for e in range(instance.number_of_exams)]) <= 1)
+
     # Check if the constraints are satisfiable
     if s.check() == sat:
         students_with_many_exams = []
@@ -149,7 +169,9 @@ def solve(instance):
             room = m.eval(ExamRoom(ex))
             slot = m.eval(ExamTime(ex))
             students_count = instance.student_exam_capacity[ex]
-            print(f"Exam: {ex} | Room: {room} | Slot: {slot} | Students: {students_count}")
+            # Calculate the number of invigilators dynamically from the model
+            invigilators = sum([1 for i in range(10) if any(is_true(m.eval(InvigilatorAssigned[i][ex][t])) for t in range(instance.number_of_slots))])
+            print(f"Exam: {ex} | Room: {room} | Slot: {slot} | Students: {students_count} | Invigilators: {invigilators}")
         print("――――――――――――――――――――――――----------------")
 
         # Print Individual Timetable for Each Student
@@ -178,6 +200,15 @@ def solve(instance):
             print(f"Warning: Student(s) {students_list} are scheduled for more than 3 exams!")
 
         print("――――――――――――――――――――――――--------------------------------------")
+
+        print("Invigilator Timetable:")
+        for i in range(10):  # Print invigilator assignments
+            print(f"Invigilator {i}:")
+            for e in range(instance.number_of_exams):
+                for t in range(instance.number_of_slots):
+                    if is_true(m.eval(InvigilatorAssigned[i][e][t])):
+                        print(f"\tExam {e} at Timeslot {t}")
+        print("――――――――――――――――――――――――----------------")
     else:
         print('Unsatisfied')
 
